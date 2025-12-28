@@ -577,29 +577,6 @@
             margin-bottom: 8px;
         }
         
-        /* 部署状态指示器 */
-        .deployment-status {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            margin-left: 10px;
-        }
-        
-        .deployment-status.online {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        
-        .deployment-status.local {
-            background: #fff3cd;
-            color: #856404;
-            border: 1px solid #ffeaa7;
-        }
-        
         @media (max-width: 768px) {
             .container {
                 flex-direction: column;
@@ -938,45 +915,45 @@
         
         <div class="qr-instructions">
             <h4><i class="fas fa-info-circle"></i> 二维码使用说明</h4>
-            <div id="qr-deployment-info">
-                <!-- 部署信息将动态显示 -->
-            </div>
-            <div id="deployment-actions" style="margin-top: 15px; display: flex; gap: 10px; justify-content: center;">
-                <button id="generate-qr-btn" style="width: auto; padding: 10px 20px;">
-                    <i class="fas fa-sync-alt"></i> 重新生成二维码
-                </button>
-                <button id="copy-url-btn" style="width: auto; padding: 10px 20px; background: #6c757d;">
-                    <i class="fas fa-copy"></i> 复制链接
-                </button>
-            </div>
+            <p>要使二维码在微信中正常工作，请按以下步骤操作：</p>
+            <ul>
+                <li><strong>方案一（推荐）：部署到服务器</strong>
+                    <ul>
+                        <li>将本文件上传到Web服务器（如阿里云、腾讯云等）</li>
+                        <li>通过HTTPS链接访问系统（如：https://example.com/bike-reservation.html）</li>
+                        <li>重新生成二维码后即可在微信中正常扫描</li>
+                    </ul>
+                </li>
+                <li><strong>方案二：使用文件共享</strong>
+                    <ul>
+                        <li>在同一Wi-Fi网络下的电脑上运行系统</li>
+                        <li>使用微信"文件传输助手"发送链接</li>
+                        <li>或使用局域网访问（如：http://192.168.1.100/bike-reservation.html）</li>
+                    </ul>
+                </li>
+                <li><strong>方案三：直接微信分享</strong>
+                    <ul>
+                        <li>在电脑浏览器中打开本系统</li>
+                        <li>复制地址栏中的URL</li>
+                        <li>通过微信发送给客户</li>
+                    </ul>
+                </li>
+            </ul>
+            <button id="generate-qr-btn" style="width: auto; margin-top: 10px;">
+                <i class="fas fa-sync-alt"></i> 重新生成二维码
+            </button>
         </div>
     </div>
     
     <div class="footer">
         <p>© 2024 健身房动感单车VIP预约系统 | 公平公正的预约平台</p>
         <p>本系统仅限VIP会员使用，每人每节课只能预约一个座位</p>
-        <div id="deployment-footer-info" style="margin-top: 10px; font-size: 0.85rem; color: #666;"></div>
     </div>
 
     <!-- 隐藏的文件输入框用于导入数据 -->
     <input type="file" id="import-file" accept=".json" style="display: none;">
 
     <script>
-        // ==================== 部署配置 ====================
-        // 用户可以在部署后修改这些配置
-        const GITHUB_USERNAME = "your-github-username"; // 请修改为你的GitHub用户名
-        const GITHUB_REPO = "bike-reservation-system"; // 请修改为你的仓库名称
-        
-        // 计算GitHub Pages URL
-        function getGitHubPagesUrl() {
-            if (GITHUB_USERNAME && GITHUB_USERNAME !== "your-github-username") {
-                return `https://${GITHUB_USERNAME}.github.io/${GITHUB_REPO}/`;
-            }
-            return null;
-        }
-        
-        // ==================== 主代码开始 ====================
-        
         // 初始化数据
         let reservations = JSON.parse(localStorage.getItem('bikeReservations')) || [];
         let lockedSeats = JSON.parse(localStorage.getItem('lockedSeats')) || [];
@@ -995,5 +972,1085 @@
         // 管理员验证状态
         let isAdminVerified = false;
         
-        // 部署状态
-        let isOnlineDeployed = false
+        // 更新设置到localStorage
+        function saveSettings() {
+            localStorage.setItem('bikeSettings', JSON.stringify(settings));
+            updateUIFromSettings();
+        }
+        
+        // 保存课程安排
+        function saveSchedules() {
+            localStorage.setItem('bikeSchedules', JSON.stringify(schedules));
+            generateCalendar();
+            updateScheduleList();
+        }
+        
+        // 从设置更新UI
+        function updateUIFromSettings() {
+            document.querySelector('.header h1').innerHTML = `<i class="fas fa-bicycle"></i> ${settings.systemTitle}`;
+            document.getElementById('system-title').value = settings.systemTitle;
+            document.getElementById('default-course-time').value = settings.courseTime;
+            document.getElementById('default-course-description').value = settings.courseDescription;
+            document.getElementById('default-max-seats').value = settings.maxSeats;
+            
+            // 更新当前选择的日期的课程信息
+            updateCourseInfoForDate(selectedDate);
+        }
+        
+        // 更新指定日期的课程信息显示
+        function updateCourseInfoForDate(dateStr) {
+            const date = new Date(dateStr);
+            const weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
+            const dateFormatted = `${date.getFullYear()}年${date.getMonth()+1}月${date.getDate()}日 星期${weekdayNames[date.getDay()]}`;
+            document.getElementById('course-date').textContent = `日期：${dateFormatted}`;
+            
+            // 获取当天的课程安排
+            const schedule = schedules[dateStr];
+            if (schedule && !schedule.canceled) {
+                document.getElementById('course-time').textContent = `时间：${schedule.time || settings.courseTime}`;
+                document.getElementById('course-description').textContent = `课程说明：${schedule.description || settings.courseDescription}`;
+                document.getElementById('course-max-seats').textContent = `最大预约人数：${schedule.maxSeats || settings.maxSeats}人`;
+            } else if (schedule && schedule.canceled) {
+                document.getElementById('course-time').textContent = `时间：停课`;
+                document.getElementById('course-description').textContent = `课程说明：今日无课程安排`;
+                document.getElementById('course-max-seats').textContent = `最大预约人数：0人`;
+            } else {
+                // 默认安排
+                document.getElementById('course-time').textContent = `时间：${settings.courseTime}`;
+                document.getElementById('course-description').textContent = `课程说明：${settings.courseDescription}`;
+                document.getElementById('course-max-seats').textContent = `最大预约人数：${settings.maxSeats}人`;
+            }
+        }
+        
+        // 获取指定日期的最大预约人数
+        function getMaxSeatsForDate(dateStr) {
+            const schedule = schedules[dateStr];
+            if (schedule && !schedule.canceled && schedule.maxSeats) {
+                return parseInt(schedule.maxSeats);
+            }
+            return settings.maxSeats;
+        }
+        
+        // 初始化页面
+        document.addEventListener('DOMContentLoaded', function() {
+            updateUIFromSettings();
+            generateSeats();
+            generateCalendar();
+            updateReservationList();
+            generateSeatOptions();
+            updateSeatInfo();
+            updateScheduleList();
+            setupQRCode(); // 生成二维码
+            setupAutoBackup();
+            setupTabSwitching();
+            setupScheduleManagement();
+            
+            // 设置默认日期选择器为今天
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('custom-date').value = today;
+            document.getElementById('schedule-start-date').value = today;
+            
+            // 设置结束日期为一个月后
+            const nextMonth = new Date();
+            nextMonth.setMonth(nextMonth.getMonth() + 1);
+            document.getElementById('schedule-end-date').value = nextMonth.toISOString().split('T')[0];
+            
+            // 检查管理员状态
+            checkAdminStatus();
+            
+            // 显示当前URL
+            document.getElementById('current-url').textContent = window.location.href;
+        });
+        
+        // 检查管理员状态
+        function checkAdminStatus() {
+            const adminMessage = document.getElementById('admin-message');
+            if (!isAdminVerified) {
+                adminMessage.classList.add('show');
+            } else {
+                adminMessage.classList.remove('show');
+            }
+        }
+        
+        // 生成所有座位
+        function generateSeats() {
+            const seatsContainer = document.getElementById('seats-container');
+            seatsContainer.innerHTML = '';
+            
+            // 生成01-43号座位
+            for (let i = 1; i <= 43; i++) {
+                const seatNumber = i.toString().padStart(2, '0');
+                const seat = document.createElement('div');
+                seat.className = 'seat available';
+                seat.textContent = seatNumber;
+                seat.dataset.seat = seatNumber;
+                
+                // 检查座位状态
+                if (lockedSeats.includes(seatNumber)) {
+                    seat.className = 'seat locked';
+                    seat.title = '该座位已被锁定';
+                } else if (isSeatBookedForDate(seatNumber, selectedDate)) {
+                    seat.className = 'seat booked';
+                    const reservation = getReservationBySeatAndDate(seatNumber, selectedDate);
+                    seat.title = `已预约：${reservation.name} (${reservation.phone})`;
+                } else {
+                    seat.addEventListener('click', () => selectSeat(seatNumber));
+                }
+                
+                seatsContainer.appendChild(seat);
+            }
+        }
+        
+        // 生成座位选择下拉框选项
+        function generateSeatOptions() {
+            const lockSelect = document.getElementById('lock-seat-select');
+            const unlockSelect = document.getElementById('unlock-seat-select');
+            
+            // 清空现有选项（保留第一个提示选项）
+            while (lockSelect.options.length > 1) lockSelect.remove(1);
+            while (unlockSelect.options.length > 1) unlockSelect.remove(1);
+            
+            // 添加所有座位选项到锁定下拉框
+            for (let i = 1; i <= 43; i++) {
+                const seatNumber = i.toString().padStart(2, '0');
+                if (!lockedSeats.includes(seatNumber)) {
+                    const option = document.createElement('option');
+                    option.value = seatNumber;
+                    option.textContent = `座位 ${seatNumber}`;
+                    lockSelect.appendChild(option);
+                }
+            }
+            
+            // 添加已锁定座位选项到解锁下拉框
+            lockedSeats.forEach(seatNumber => {
+                const option = document.createElement('option');
+                option.value = seatNumber;
+                option.textContent = `座位 ${seatNumber} (已锁定)`;
+                unlockSelect.appendChild(option);
+            });
+        }
+        
+        // 检查座位在指定日期是否已被预约
+        function isSeatBookedForDate(seatNumber, dateStr) {
+            return reservations.some(res => res.seat === seatNumber && res.date === dateStr);
+        }
+        
+        // 根据座位号和日期获取预约信息
+        function getReservationBySeatAndDate(seatNumber, dateStr) {
+            return reservations.find(res => res.seat === seatNumber && res.date === dateStr);
+        }
+        
+        // 获取指定日期的所有预约
+        function getReservationsForDate(dateStr) {
+            return reservations.filter(res => res.date === dateStr);
+        }
+        
+        // 选择座位
+        let selectedSeat = null;
+        function selectSeat(seatNumber) {
+            // 重置所有座位选择状态
+            document.querySelectorAll('.seat.available').forEach(seat => {
+                seat.classList.remove('selected');
+            });
+            
+            // 设置选中座位
+            const seatElement = document.querySelector(`.seat[data-seat="${seatNumber}"]`);
+            if (seatElement) {
+                seatElement.classList.add('selected');
+                selectedSeat = seatNumber;
+            }
+        }
+        
+        // 更新座位信息显示
+        function updateSeatInfo() {
+            const totalSeats = 43;
+            const dateReservations = getReservationsForDate(selectedDate);
+            const bookedSeats = dateReservations.length;
+            const maxSeats = getMaxSeatsForDate(selectedDate);
+            const availableSeats = maxSeats - bookedSeats;
+            
+            document.getElementById('available-seats').textContent = Math.max(0, availableSeats);
+            document.getElementById('booked-seats').textContent = bookedSeats;
+            document.getElementById('total-seats').textContent = totalSeats;
+        }
+        
+        // 更新预约列表
+        function updateReservationList() {
+            const reservationList = document.getElementById('reservation-list');
+            reservationList.innerHTML = '';
+            
+            if (reservations.length === 0) {
+                reservationList.innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">暂无预约记录</p>';
+                return;
+            }
+            
+            // 按日期和座位号排序
+            const sortedReservations = [...reservations].sort((a, b) => {
+                if (a.date === b.date) {
+                    return parseInt(a.seat) - parseInt(b.seat);
+                }
+                return a.date.localeCompare(b.date);
+            });
+            
+            sortedReservations.forEach(reservation => {
+                const item = document.createElement('div');
+                item.className = 'reservation-item';
+                
+                const date = new Date(reservation.date);
+                const weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
+                const dateFormatted = `${date.getMonth()+1}月${date.getDate()}日`;
+                
+                const details = document.createElement('div');
+                details.className = 'reservation-details';
+                details.innerHTML = `
+                    <div><strong>${reservation.name}</strong></div>
+                    <div style="font-size: 0.9rem; color: #666;">${reservation.phone} • ${dateFormatted} 周${weekdayNames[date.getDay()]}</div>
+                    <div style="font-size: 0.8rem; color: #999;">预约时间: ${reservation.time}</div>
+                `;
+                
+                const seatBadge = document.createElement('div');
+                seatBadge.className = 'reservation-seat';
+                seatBadge.textContent = `座位 ${reservation.seat}`;
+                
+                item.appendChild(details);
+                item.appendChild(seatBadge);
+                
+                reservationList.appendChild(item);
+            });
+        }
+        
+        // 显示提示消息
+        function showAlert(message, type = 'success') {
+            const alert = document.getElementById('alert');
+            alert.textContent = message;
+            alert.className = `alert ${type}`;
+            alert.style.display = 'block';
+            
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 5000);
+        }
+        
+        // 显示管理消息（在管理设置页面）
+        function showAdminMessage(message, type = 'info') {
+            const adminMessage = document.getElementById('admin-message');
+            adminMessage.innerHTML = `<i class="fas fa-${type === 'error' ? 'exclamation-triangle' : 'info-circle'}"></i> ${message}`;
+            adminMessage.style.background = type === 'error' ? '#f8d7da' : '#fff3cd';
+            adminMessage.style.borderColor = type === 'error' ? '#f5c6cb' : '#ffeaa7';
+            adminMessage.style.color = type === 'error' ? '#721c24' : '#856404';
+            adminMessage.classList.add('show');
+            
+            setTimeout(() => {
+                adminMessage.classList.remove('show');
+            }, 5000);
+        }
+        
+ // 设置二维码 - 针对GitHub Pages环境优化
+function setupQRCode() {
+    // 清空二维码容器
+    const qrContainer = document.getElementById('qrcode');
+    qrContainer.innerHTML = '';
+    
+    // 获取当前页面的URL
+    let currentUrl = window.location.href;
+    
+    // 检查是否是GitHub Pages环境
+    const isGitHubPages = currentUrl.includes('github.io') || currentUrl.includes('github.com');
+    
+    // 如果是GitHub Pages环境，直接使用当前URL
+    if (isGitHubPages) {
+        // 显示当前URL
+        document.getElementById('current-url').textContent = currentUrl;
+        
+        // 生成二维码
+        try {
+            new QRCode(qrContainer, {
+                text: currentUrl,
+                width: 200,
+                height: 200,
+                colorDark: "#1a2980",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+            
+            console.log("GitHub Pages二维码已生成 - 链接:", currentUrl);
+        } catch (error) {
+            console.error("生成二维码失败:", error);
+            showQRCodeError(currentUrl, qrContainer);
+        }
+    } else {
+        // 非GitHub环境，提供部署指导
+        document.getElementById('current-url').textContent = "请将系统部署到GitHub Pages后使用";
+        document.getElementById('current-url').style.color = "#dc3545";
+        
+        // 创建GitHub部署指导信息
+        const messageDiv = document.createElement('div');
+        messageDiv.innerHTML = `
+            <div style="text-align: center; padding: 20px;">
+                <i class="fas fa-github" style="font-size: 2rem; color: #24292e; margin-bottom: 10px;"></i>
+                <h4 style="color: #1a2980;">GitHub Pages部署指南</h4>
+                <p style="color: #666; text-align: left; font-size: 0.9rem; line-height: 1.4;">
+                    1. 将本文件上传到GitHub仓库<br>
+                    2. 在仓库设置中启用GitHub Pages<br>
+                    3. 选择主分支作为源<br>
+                    4. 等待部署完成后访问：https://用户名.github.io/仓库名/<br>
+                    5. 使用该链接重新生成二维码
+                </p>
+                <div style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                    <p style="color: #666; font-size: 0.85rem; margin: 0;">
+                        当前URL: ${currentUrl}<br>
+                        <span style="color: #dc3545;">⚠️ 本地文件无法在微信中直接扫描</span>
+                    </p>
+                </div>
+            </div>
+        `;
+        qrContainer.appendChild(messageDiv);
+    }
+}
+
+// 显示二维码生成错误
+function showQRCodeError(url, container) {
+    container.innerHTML = `
+        <div style="text-align: center; padding: 20px;">
+            <i class="fas fa-exclamation-circle" style="font-size: 2rem; color: #dc3545; margin-bottom: 10px;"></i>
+            <p style="color: #666;">二维码生成失败</p>
+            <p style="color: #666; font-size: 0.9rem;">请手动复制下方链接分享：</p>
+            <p style="background: #f8f9fa; padding: 10px; border-radius: 5px; word-break: break-all; font-size: 0.9rem;">${url}</p>
+        </div>
+    `;
+}
+
+// 重新生成二维码按钮 - 针对GitHub环境优化
+document.getElementById('generate-qr-btn').addEventListener('click', function() {
+    setupQRCode();
+    
+    // 检查当前环境
+    const currentUrl = window.location.href;
+    if (currentUrl.includes('github.io') || currentUrl.includes('github.com')) {
+        showAlert('二维码已重新生成（GitHub Pages环境）', 'success');
+    } else {
+        showAlert('请在GitHub Pages环境中使用二维码功能', 'info');
+    }
+});
+        
+        // 自动备份功能
+        function setupAutoBackup() {
+            function autoBackup() {
+                const backupData = {
+                    reservations: reservations,
+                    lockedSeats: lockedSeats,
+                    settings: settings,
+                    schedules: schedules,
+                    backupTime: new Date().toISOString()
+                };
+                
+                const backups = JSON.parse(localStorage.getItem('backups') || '[]');
+                backups.unshift(backupData);
+                
+                if (backups.length > 5) {
+                    backups.pop();
+                }
+                
+                localStorage.setItem('backups', JSON.stringify(backups));
+            }
+            
+            setInterval(autoBackup, 60 * 60 * 1000);
+            window.addEventListener('beforeunload', autoBackup);
+        }
+        
+        // 标签页切换功能
+        function setupTabSwitching() {
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const tabName = this.getAttribute('data-tab');
+                    
+                    // 移除所有标签的active类
+                    tabs.forEach(t => t.classList.remove('active'));
+                    // 添加当前标签的active类
+                    this.classList.add('active');
+                    
+                    // 隐藏所有标签内容
+                    document.querySelectorAll('.tab-content').forEach(content => {
+                        content.classList.remove('active');
+                    });
+                    
+                    // 显示当前标签内容
+                    document.getElementById(`${tabName}-tab`).classList.add('active');
+                });
+            });
+        }
+        
+        // 设置课程管理功能
+        function setupScheduleManagement() {
+            // 星期选择器
+            const weekdayOptions = document.querySelectorAll('.weekday-option');
+            weekdayOptions.forEach(option => {
+                option.addEventListener('click', function() {
+                    this.classList.toggle('selected');
+                });
+            });
+            
+            // 周期类型切换
+            document.getElementById('schedule-type').addEventListener('change', function() {
+                const type = this.value;
+                document.getElementById('weekly-options').style.display = type === 'weekly' ? 'block' : 'none';
+            });
+            
+            // 初始化显示/隐藏
+            document.getElementById('weekly-options').style.display = 'block';
+            
+            // 当日期选择器变化时，加载已有的课程安排
+            document.getElementById('custom-date').addEventListener('change', function() {
+                loadScheduleForDate(this.value);
+            });
+        }
+        
+        // 为指定日期加载课程安排
+        function loadScheduleForDate(dateStr) {
+            const schedule = schedules[dateStr];
+            if (schedule) {
+                document.getElementById('custom-course-time').value = schedule.time || '';
+                document.getElementById('custom-course-description').value = schedule.description || '';
+                document.getElementById('custom-course-canceled').value = schedule.canceled ? 'true' : 'false';
+                document.getElementById('custom-max-seats').value = schedule.maxSeats || '';
+            } else {
+                document.getElementById('custom-course-time').value = '';
+                document.getElementById('custom-course-description').value = '';
+                document.getElementById('custom-course-canceled').value = 'false';
+                document.getElementById('custom-max-seats').value = '';
+            }
+        }
+        
+        // 生成日历
+        function generateCalendar(containerId = 'calendar-container', month = currentMonth, year = currentYear, isFullCalendar = false) {
+            const container = document.getElementById(containerId === 'calendar-container-full' ? 'calendar-container-full' : 'calendar-container');
+            container.innerHTML = '';
+            
+            // 更新月份显示
+            const monthNames = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
+            const monthDisplay = isFullCalendar ? 'current-month-calendar' : 'current-month';
+            document.getElementById(monthDisplay).textContent = `${year}年${monthNames[month]}`;
+            
+            // 获取当月的第一天和最后一天
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const daysInMonth = lastDay.getDate();
+            
+            // 获取第一天是星期几（0=星期日，1=星期一，...）
+            const firstDayOfWeek = firstDay.getDay();
+            
+            // 添加上个月的最后几天
+            const prevMonthLastDay = new Date(year, month, 0).getDate();
+            const weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
+            
+            // 添加上个月的日期
+            for (let i = 0; i < firstDayOfWeek; i++) {
+                const dayNumber = prevMonthLastDay - firstDayOfWeek + i + 1;
+                const day = document.createElement('div');
+                day.className = 'calendar-day past';
+                
+                // 计算上个月这一天的实际星期
+                const prevDate = new Date(year, month - 1, dayNumber);
+                
+                day.innerHTML = `
+                    <div class="day-number">${dayNumber}</div>
+                    <div class="day-week">${weekdayNames[prevDate.getDay()]}</div>
+                `;
+                container.appendChild(day);
+            }
+            
+            // 添加本月的所有天数
+            const today = new Date();
+            const todayStr = today.toISOString().split('T')[0];
+            
+            for (let i = 1; i <= daysInMonth; i++) {
+                const date = new Date(year, month, i);
+                const dateStr = date.toISOString().split('T')[0];
+                const dayOfWeek = date.getDay();
+                const isToday = dateStr === todayStr;
+                const isSelected = dateStr === selectedDate;
+                const hasSchedule = schedules[dateStr] && !schedules[dateStr].canceled;
+                const isPast = date < today && !isToday;
+                
+                const day = document.createElement('div');
+                day.className = 'calendar-day';
+                if (isSelected) day.classList.add('selected');
+                if (isToday) day.classList.add('today');
+                if (dayOfWeek === 0 || dayOfWeek === 6) day.classList.add('weekend');
+                if (isPast) day.classList.add('past');
+                if (hasSchedule) {
+                    day.style.background = '#e8f5e9';
+                    day.style.border = '2px solid #c8e6c9';
+                }
+                
+                day.innerHTML = `
+                    <div class="day-number">${i}</div>
+                    <div class="day-week">${weekdayNames[dayOfWeek]}</div>
+                `;
+                
+                if (!isPast) {
+                    day.addEventListener('click', () => {
+                        selectedDate = dateStr;
+                        if (!isFullCalendar) {
+                            generateCalendar('calendar-container', month, year, false);
+                        } else {
+                            generateCalendar('calendar-container-full', month, year, true);
+                        }
+                        generateSeats();
+                        updateSeatInfo();
+                        updateScheduleList();
+                        updateCourseInfoForDate(dateStr);
+                        
+                        // 如果是在完整日历中点击，切换到预约标签页
+                        if (isFullCalendar) {
+                            document.querySelector('.tab[data-tab="reservation"]').click();
+                        }
+                    });
+                }
+                
+                container.appendChild(day);
+            }
+            
+            // 添加下个月的前几天以填满网格
+            const totalCells = 42; // 6行x7列
+            const cellsUsed = firstDayOfWeek + daysInMonth;
+            const nextMonthDays = totalCells - cellsUsed;
+            
+            for (let i = 1; i <= nextMonthDays; i++) {
+                const day = document.createElement('div');
+                day.className = 'calendar-day past';
+                const nextDate = new Date(year, month + 1, i);
+                day.innerHTML = `
+                    <div class="day-number">${i}</div>
+                    <div class="day-week">${weekdayNames[nextDate.getDay()]}</div>
+                `;
+                container.appendChild(day);
+            }
+        }
+        
+        // 更新课程安排列表
+        function updateScheduleList() {
+            const scheduleList = document.getElementById('schedule-list');
+            scheduleList.innerHTML = '';
+            
+            const schedule = schedules[selectedDate];
+            if (!schedule || schedule.canceled) {
+                scheduleList.innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">今日无课程安排</p>';
+                return;
+            }
+            
+            const dateReservations = getReservationsForDate(selectedDate);
+            const bookedCount = dateReservations.length;
+            const maxSeats = getMaxSeatsForDate(selectedDate);
+            const isFull = bookedCount >= maxSeats;
+            
+            const scheduleItem = document.createElement('div');
+            scheduleItem.className = 'schedule-item';
+            scheduleItem.innerHTML = `
+                <div>
+                    <div class="schedule-time">${schedule.time || settings.courseTime}</div>
+                    <div style="font-size: 0.9rem; color: #666; margin-top: 5px;">${schedule.description || settings.courseDescription}</div>
+                    <div style="font-size: 0.8rem; color: #888; margin-top: 3px;">最大预约人数: ${maxSeats}人</div>
+                </div>
+                <div class="schedule-status ${isFull ? 'full' : 'available'}">
+                    ${bookedCount}/${maxSeats}
+                </div>
+            `;
+            
+            scheduleList.appendChild(scheduleItem);
+        }
+        
+        // 添加周期性课程
+        function addRecurringSchedule() {
+            if (!isAdminVerified) {
+                showAdminMessage('请先验证管理员身份', 'error');
+                return;
+            }
+            
+            const type = document.getElementById('schedule-type').value;
+            const time = document.getElementById('recurring-course-time').value;
+            const description = document.getElementById('recurring-course-description').value;
+            const maxSeatsInput = document.getElementById('recurring-max-seats').value;
+            const maxSeats = maxSeatsInput ? parseInt(maxSeatsInput) : null;
+            const startDate = document.getElementById('schedule-start-date').value;
+            const endDate = document.getElementById('schedule-end-date').value;
+            
+            if (!time || !startDate || !endDate) {
+                showAdminMessage('请填写完整的课程信息', 'error');
+                return;
+            }
+            
+            if (new Date(startDate) > new Date(endDate)) {
+                showAdminMessage('开始日期不能晚于结束日期', 'error');
+                return;
+            }
+            
+            let selectedWeekdays = [];
+            if (type === 'weekly') {
+                const selected = document.querySelectorAll('.weekday-option.selected');
+                if (selected.length === 0) {
+                    showAdminMessage('请至少选择一天', 'error');
+                    return;
+                }
+                selectedWeekdays = Array.from(selected).map(opt => parseInt(opt.getAttribute('data-day')));
+            }
+            
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            
+            let count = 0;
+            const currentDate = new Date(start);
+            
+            while (currentDate <= end) {
+                const dateStr = currentDate.toISOString().split('T')[0];
+                const dayOfWeek = currentDate.getDay();
+                
+                let shouldAdd = false;
+                if (type === 'daily') {
+                    shouldAdd = true;
+                } else if (type === 'weekly') {
+                    shouldAdd = selectedWeekdays.includes(dayOfWeek);
+                } else if (type === 'monthly') {
+                    shouldAdd = currentDate.getDate() === start.getDate();
+                }
+                
+                if (shouldAdd) {
+                    schedules[dateStr] = {
+                        time: time,
+                        description: description,
+                        maxSeats: maxSeats,
+                        canceled: false
+                    };
+                    count++;
+                }
+                
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+            
+            saveSchedules();
+            showAdminMessage(`成功添加 ${count} 个课程安排`, 'success');
+            
+            // 重置表单
+            document.getElementById('recurring-course-time').value = '';
+            document.getElementById('recurring-course-description').value = '';
+            document.getElementById('recurring-max-seats').value = '';
+            document.querySelectorAll('.weekday-option.selected').forEach(opt => opt.classList.remove('selected'));
+        }
+        
+        // 导出数据功能
+        function exportData() {
+            const allData = {
+                reservations: reservations,
+                lockedSeats: lockedSeats,
+                settings: settings,
+                schedules: schedules,
+                exportTime: new Date().toLocaleString('zh-CN'),
+                totalRecords: reservations.length
+            };
+            
+            const dataStr = JSON.stringify(allData, null, 2);
+            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+            
+            const exportFileDefaultName = `单车预约数据_${new Date().toLocaleDateString().replace(/\//g, '-')}.json`;
+            
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', exportFileDefaultName);
+            linkElement.click();
+            
+            showAlert(`数据已导出为JSON文件，共${reservations.length}条记录`, 'success');
+        }
+        
+        // 导入数据功能
+        function importData() {
+            document.getElementById('import-file').click();
+        }
+        
+        // 清除所有数据
+        function clearAllData() {
+            if (confirm('确定要清除所有数据吗？此操作不可恢复！')) {
+                if (confirm('再次确认：这将删除所有预约记录、锁定座位、课程安排和设置！')) {
+                    reservations = [];
+                    lockedSeats = [];
+                    schedules = {};
+                    settings = {
+                        courseTime: "19:00-20:00",
+                        courseDescription: "高强度间歇训练，燃烧你的卡路里！",
+                        systemTitle: "动感单车VIP预约系统",
+                        maxSeats: 15
+                    };
+                    
+                    localStorage.setItem('bikeReservations', JSON.stringify(reservations));
+                    localStorage.setItem('lockedSeats', JSON.stringify(lockedSeats));
+                    localStorage.setItem('bikeSchedules', JSON.stringify(schedules));
+                    localStorage.setItem('bikeSettings', JSON.stringify(settings));
+                    
+                    generateSeats();
+                    updateReservationList();
+                    updateSeatInfo();
+                    updateUIFromSettings();
+                    generateSeatOptions();
+                    generateCalendar();
+                    updateScheduleList();
+                    
+                    showAlert('所有数据已清除，系统已恢复初始状态', 'success');
+                }
+            }
+        }
+        
+        // 预约按钮事件
+        document.getElementById('reserve-btn').addEventListener('click', function() {
+            const name = document.getElementById('name').value.trim();
+            const phone = document.getElementById('phone').value.trim();
+            
+            // 验证输入
+            if (!name || !phone) {
+                showAlert('请填写姓名和手机号码', 'error');
+                return;
+            }
+            
+            if (!/^1[3-9]\d{9}$/.test(phone)) {
+                showAlert('请输入有效的手机号码', 'error');
+                return;
+            }
+            
+            if (!selectedSeat) {
+                showAlert('请选择一个座位', 'error');
+                return;
+            }
+            
+            // 检查当天是否有课程
+            const schedule = schedules[selectedDate];
+            if (schedule && schedule.canceled) {
+                showAlert('今日课程已取消，无法预约', 'error');
+                return;
+            }
+            
+            // 检查座位是否可用
+            if (lockedSeats.includes(selectedSeat)) {
+                showAlert('该座位已被锁定，请选择其他座位', 'error');
+                return;
+            }
+            
+            if (isSeatBookedForDate(selectedSeat, selectedDate)) {
+                showAlert('该座位已被预约，请选择其他座位', 'error');
+                return;
+            }
+            
+            // 检查是否已满
+            const dateReservations = getReservationsForDate(selectedDate);
+            const maxSeats = getMaxSeatsForDate(selectedDate);
+            if (dateReservations.length >= maxSeats) {
+                showAlert('抱歉，本课程已预约满员', 'error');
+                return;
+            }
+            
+            // 检查该手机号是否已预约当天课程
+            if (dateReservations.some(res => res.phone === phone)) {
+                showAlert('每个手机号每节课只能预约一个座位', 'error');
+                return;
+            }
+            
+            // 创建预约记录
+            const reservation = {
+                name,
+                phone,
+                seat: selectedSeat,
+                date: selectedDate,
+                time: new Date().toLocaleString('zh-CN')
+            };
+            
+            // 保存预约
+            reservations.push(reservation);
+            localStorage.setItem('bikeReservations', JSON.stringify(reservations));
+            
+            // 更新UI
+            generateSeats();
+            updateReservationList();
+            updateSeatInfo();
+            updateScheduleList();
+            
+            // 显示成功消息
+            const date = new Date(selectedDate);
+            const weekdayNames = ['日', '一', '二', '三', '四', '五', '六'];
+            const dateFormatted = `${date.getMonth()+1}月${date.getDate()}日`;
+            showAlert(`预约成功！${dateFormatted} 座位号 ${selectedSeat}`, 'success');
+            
+            // 重置表单
+            document.getElementById('name').value = '';
+            document.getElementById('phone').value = '';
+            selectedSeat = null;
+            
+            // 更新座位选择下拉框
+            generateSeatOptions();
+        });
+        
+        // 锁定座位按钮事件
+        document.getElementById('lock-seat-btn').addEventListener('click', function() {
+            const seatSelect = document.getElementById('lock-seat-select');
+            const seatNumber = seatSelect.value;
+            
+            if (!seatNumber) {
+                showAdminMessage('请选择要锁定的座位', 'error');
+                return;
+            }
+            
+            // 检查是否已被预约（任何日期）
+            if (reservations.some(res => res.seat === seatNumber)) {
+                showAdminMessage('该座位已被预约，无法锁定', 'error');
+                return;
+            }
+            
+            // 检查是否已锁定
+            if (lockedSeats.includes(seatNumber)) {
+                showAdminMessage('该座位已被锁定', 'error');
+                return;
+            }
+            
+            // 锁定座位
+            lockedSeats.push(seatNumber);
+            localStorage.setItem('lockedSeats', JSON.stringify(lockedSeats));
+            
+            // 更新UI
+            generateSeats();
+            generateSeatOptions();
+            showAdminMessage(`座位 ${seatNumber} 已锁定`, 'success');
+        });
+        
+        // 解锁座位按钮事件
+        document.getElementById('unlock-seat-btn').addEventListener('click', function() {
+            const seatSelect = document.getElementById('unlock-seat-select');
+            const seatNumber = seatSelect.value;
+            
+            if (!seatNumber) {
+                showAdminMessage('请选择要解锁的座位', 'error');
+                return;
+            }
+            
+            // 解锁座位
+            lockedSeats = lockedSeats.filter(seat => seat !== seatNumber);
+            localStorage.setItem('lockedSeats', JSON.stringify(lockedSeats));
+            
+            // 更新UI
+            generateSeats();
+            generateSeatOptions();
+            showAdminMessage(`座位 ${seatNumber} 已解锁`, 'success');
+        });
+        
+        // 保存管理员设置
+        document.getElementById('admin-save-btn').addEventListener('click', function() {
+            const password = document.getElementById('admin-password').value;
+            
+            if (password !== 'admin123') {
+                showAdminMessage('管理员密码错误', 'error');
+                return;
+            }
+            
+            // 更新设置
+            settings.courseTime = document.getElementById('default-course-time').value;
+            settings.courseDescription = document.getElementById('default-course-description').value;
+            settings.systemTitle = document.getElementById('system-title').value;
+            settings.maxSeats = parseInt(document.getElementById('default-max-seats').value);
+            
+            // 保存设置
+            saveSettings();
+            
+            // 设置管理员验证状态
+            isAdminVerified = true;
+            checkAdminStatus();
+            
+            showAdminMessage('基本设置已保存', 'success');
+        });
+        
+        // 添加自定义课程安排
+        document.getElementById('add-schedule-btn').addEventListener('click', function() {
+            if (!isAdminVerified) {
+                showAdminMessage('请先验证管理员身份', 'error');
+                return;
+            }
+            
+            const date = document.getElementById('custom-date').value;
+            const time = document.getElementById('custom-course-time').value;
+            const description = document.getElementById('custom-course-description').value;
+            const maxSeatsInput = document.getElementById('custom-max-seats').value;
+            const maxSeats = maxSeatsInput ? parseInt(maxSeatsInput) : null;
+            const canceled = document.getElementById('custom-course-canceled').value === 'true';
+            
+            if (!date) {
+                showAdminMessage('请选择日期', 'error');
+                return;
+            }
+            
+            if (!canceled && !time) {
+                showAdminMessage('请填写课程时间', 'error');
+                return;
+            }
+            
+            schedules[date] = {
+                time: time,
+                description: description,
+                maxSeats: maxSeats,
+                canceled: canceled
+            };
+            
+            saveSchedules();
+            
+            // 如果更新的是当前选中的日期，更新UI
+            if (date === selectedDate) {
+                updateCourseInfoForDate(date);
+                updateScheduleList();
+            }
+            
+            showAdminMessage(`课程安排已${canceled ? '设置为停课' : '添加'}`, 'success');
+            
+            // 重置表单
+            if (!canceled) {
+                document.getElementById('custom-course-time').value = '';
+                document.getElementById('custom-course-description').value = '';
+                document.getElementById('custom-max-seats').value = '';
+            }
+        });
+        
+        // 删除课程安排
+        document.getElementById('remove-schedule-btn').addEventListener('click', function() {
+            if (!isAdminVerified) {
+                showAdminMessage('请先验证管理员身份', 'error');
+                return;
+            }
+            
+            const date = document.getElementById('custom-date').value;
+            
+            if (!date) {
+                showAdminMessage('请选择日期', 'error');
+                return;
+            }
+            
+            if (!schedules[date]) {
+                showAdminMessage('该日期没有课程安排', 'error');
+                return;
+            }
+            
+            if (confirm(`确定要删除 ${date} 的课程安排吗？`)) {
+                delete schedules[date];
+                saveSchedules();
+                
+                if (date === selectedDate) {
+                    updateCourseInfoForDate(date);
+                    updateScheduleList();
+                }
+                
+                showAdminMessage('课程安排已删除', 'success');
+                
+                // 重置表单
+                document.getElementById('custom-course-time').value = '';
+                document.getElementById('custom-course-description').value = '';
+                document.getElementById('custom-max-seats').value = '';
+                document.getElementById('custom-course-canceled').value = 'false';
+            }
+        });
+        
+        // 添加周期性课程按钮事件
+        document.getElementById('add-recurring-schedule-btn').addEventListener('click', addRecurringSchedule);
+        
+        // 处理导入文件
+        document.getElementById('import-file').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    
+                    // 验证数据格式
+                    if (!importedData.reservations || !importedData.settings) {
+                        throw new Error('文件格式不正确，请选择正确的数据文件');
+                    }
+                    
+                    // 显示导入预览
+                    const previewText = `
+                        数据预览：
+                        - 预约记录：${importedData.reservations.length} 条
+                        - 锁定座位：${importedData.lockedSeats?.length || 0} 个
+                        - 课程安排：${Object.keys(importedData.schedules || {}).length} 个
+                        - 课程时间：${importedData.settings.courseTime}
+                        - 系统标题：${importedData.settings.systemTitle}
+                        
+                        导入将覆盖当前所有数据，确定要继续吗？
+                    `;
+                    
+                    // 确认导入
+                    if (confirm(previewText)) {
+                        reservations = importedData.reservations;
+                        lockedSeats = importedData.lockedSeats || [];
+                        settings = importedData.settings;
+                        schedules = importedData.schedules || {};
+                        
+                        localStorage.setItem('bikeReservations', JSON.stringify(reservations));
+                        localStorage.setItem('lockedSeats', JSON.stringify(lockedSeats));
+                        localStorage.setItem('bikeSettings', JSON.stringify(settings));
+                        localStorage.setItem('bikeSchedules', JSON.stringify(schedules));
+                        
+                        generateSeats();
+                        updateReservationList();
+                        updateSeatInfo();
+                        updateUIFromSettings();
+                        generateSeatOptions();
+                        generateCalendar();
+                        updateScheduleList();
+                        
+                        // 设置管理员验证状态
+                        isAdminVerified = true;
+                        checkAdminStatus();
+                        
+                        showAlert(`数据导入成功！共导入 ${reservations.length} 条预约记录`, 'success');
+                    }
+                } catch (error) {
+                    showAlert('导入失败：' + error.message, 'error');
+                }
+                
+                e.target.value = '';
+            };
+            reader.readAsText(file);
+        });
+        
+        // 日历导航按钮事件
+        document.getElementById('prev-month').addEventListener('click', function() {
+            currentMonth--;
+            if (currentMonth < 0) {
+                currentMonth = 11;
+                currentYear--;
+            }
+            generateCalendar('calendar-container', currentMonth, currentYear, false);
+        });
+        
+        document.getElementById('next-month').addEventListener('click', function() {
+            currentMonth++;
+            if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+            }
+            generateCalendar('calendar-container', currentMonth, currentYear, false);
+        });
+        
+        document.getElementById('prev-month-calendar').addEventListener('click', function() {
+            currentMonth--;
+            if (currentMonth < 0) {
+                currentMonth = 11;
+                currentYear--;
+            }
+            generateCalendar('calendar-container-full', currentMonth, currentYear, true);
+        });
+        
+        document.getElementById('next-month-calendar').addEventListener('click', function() {
+            currentMonth++;
+            if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+            }
+            generateCalendar('calendar-container-full', currentMonth, currentYear, true);
+        });
+    </script>
+</body>
+</html>
